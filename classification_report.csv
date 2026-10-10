@@ -1,0 +1,8 @@
+,precision,recall,f1-score,support
+Cyclone,1,0.9648,0.9821,199
+Earthquake,0.9504,0.971,0.9606,276
+Flood,0.9461,0.9279,0.9369,208
+Wildfire,0.9567,0.9803,0.9684,203
+accuracy,0.9616,0.9616,0.9616,886
+macro avg,0.9633,0.961,0.962,886
+weighted avg,0.962,0.9616,0.9616,886
