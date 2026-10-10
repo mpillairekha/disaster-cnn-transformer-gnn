@@ -230,4 +230,12 @@ The following artifacts are intended to support independent verification of the 
 
 The prediction records can be used to independently recompute the evaluation metrics and confusion matrix. The configuration and model checkpoint provide additional information for examining the reported experimental run.
 
----
+------
+
+## Trained Model Checkpoint
+
+The trained model checkpoint is available as a GitHub Release asset.
+
+- **Model:** `proposed_seed0.keras`
+- **Release version:** `v1.0.0`
+- **Download:** [Download the trained model](https://github.com/mpillairekha/disaster-cnn-transformer-gnn/releases/download/v1.0.0/proposed_seed0.keras)
