@@ -1,547 +1,233 @@
-# Hybrid CNN-Transformer-GNN for Multi-Class Disaster Image Classification
+# Disaster Image Classification
 
-Implementation of the research work:
+### Cross-Attention Guided CNN–Transformer–GNN
 
-**Cross-Attention Guided CNN-Transformer-GNN Architecture for Multi-Class Disaster Image Classification**
+Hybrid deep-learning model for classifying disaster images into four categories: **Cyclone, Earthquake, Flood, and Wildfire**.
 
-This repository contains the implementation and experimental reproduction of a hybrid deep learning architecture that combines a Convolutional Neural Network (CNN), Transformer Encoder, Lightweight Graph Neural Network (GNN), and Cross-Attention Gating Block (CAGB) for multi-class disaster image classification.
-
----
-
-## 1. Project Overview
-
-Natural disaster image classification is an important task for disaster monitoring, assessment, emergency response, and decision support.
-
-The proposed framework combines:
-
-- InceptionV3-based CNN feature extraction
-- Transformer-based contextual feature learning
-- Lightweight GNN-based relational feature learning
-- Cross-Attention Gating Block (CAGB)
-- Fully connected classification
-
-The main objective is to jointly capture:
-
-1. Local visual features
-2. Global contextual relationships
-3. Inter-regional relational information
-4. Complementary information between CNN, Transformer, and GNN representations
+The proposed framework integrates CNN image features, Transformer token representations, graph-based feature interactions, and a Cross-Attention Gating Block (CAGB).
 
 ---
 
-## 2. Proposed Architecture
+## 1. Dataset
 
-The overall architecture is:
-
-```text
-                         Input Image
-                              |
-              +---------------+---------------+
-              |                               |
-              v                               v
-       InceptionV3 Branch              Transformer Branch
-              |                               |
-              v                               v
-      CNN Feature Extraction            Stem Block
-              |                               |
-              v                               v
-     Global Average Pooling             Patch Embedding
-              |                               |
-              v                               v
-       CNN Projection                 Transformer Encoder
-                                              |
-                                              v
-                                      Transformer Tokens
-                                              |
-                                              v
-                                      Lightweight GNN
-                                              |
-                                              v
-                                         GNN Features
-              |                               |
-              +---------------+---------------+
-                              |
-                              v
-                  Cross-Attention Gating
-                       Block (CAGB)
-                              |
-                              v
-                    Feature Concatenation
-                              |
-                              v
-                     Fused Representation
-                              |
-                              v
-                       Dense Layer (256)
-                              |
-                              v
-                            Softmax
-                              |
-                              v
-                    Disaster Classification
-```
-
-The proposed framework combines CNN-based visual feature extraction, Transformer-based contextual learning, and GNN-based relational representation learning through the CAGB fusion mechanism.
-
----
-
-## 3. Dataset
-
-The paper uses the **Disaster Images Dataset (CNN Model)**.
-
-The dataset contains **4,428 images** distributed across four disaster categories.
-
-### 3.1 Dataset Classes
+The dataset contains 4,428 images belonging to four disaster categories.
 
 | Class | Number of Images |
-|---|---:|
+|:---|---:|
 | Cyclone | 928 |
 | Earthquake | 1,350 |
 | Flood | 1,073 |
 | Wildfire | 1,077 |
 | **Total** | **4,428** |
 
-### 3.2 Dataset Splitting
+---
 
-The dataset is divided into training, validation, and testing subsets.
+## 2. Dataset Split
 
-| Dataset | Number of Images | Percentage |
-|---|---:|---:|
-| Training | 2,834 | ~64% |
-| Validation | 708 | ~16% |
-| Testing | 886 | ~20% |
-| **Total** | **4,428** | **100%** |
+The data is split into training and testing subsets using `train_test_split` with `random_state=0`. A further 20% of the training portion is held out for validation using `validation_split=0.2`.
 
-The complete image collection is treated as the master image pool before splitting.
-
-The paper also describes duplicate verification using SHA-256 file-content hashing and perceptual hashing.
-
-The dataset itself is not stored in this GitHub repository.
+| Dataset Subset | Number of Images |
+|:---|---:|
+| Training | 2,834 |
+| Validation | 708 |
+| Testing | 886 |
+| **Total** | **4,428** |
 
 ---
 
-## 4. Data Preprocessing
+## 3. Data Leakage Check
 
-All images are resized to:
+Train and test file paths do not overlap. A SHA-256 comparison of file contents found no byte-identical images shared between the training and test sets.
 
-```text
-224 × 224 pixels
-```
+---
 
-Pixel intensities are normalized from:
+## 4. Image Preprocessing
 
-```text
-[0, 255]
-```
+| Parameter | Value |
+|:---|:---|
+| Image size | 224 × 224 × 3 |
+| Color mode | RGB |
+| Pixel normalization | [-1, 1] |
+| Random seed | 0 |
 
-to:
+### Class Mapping
 
-```text
-[-1, 1]
-```
-
-The preprocessing pipeline is:
-
-```text
-Input Image
-     |
-     v
-Resize to 224 × 224
-     |
-     v
-Pixel Normalization
-[0,255] → [-1,1]
-     |
-     v
-Training / Validation / Testing
-```
+| Class | Class Index |
+|:---|---:|
+| Cyclone | 0 |
+| Earthquake | 1 |
+| Flood | 2 |
+| Wildfire | 3 |
 
 ---
 
 ## 5. Data Augmentation
 
-Online data augmentation is applied dynamically during training.
+The notebook describes the following intended online augmentation settings for training images.
 
-The reported augmentation configuration includes:
+| Augmentation Parameter | Value |
+|:---|---:|
+| Rotation range | 30 |
+| Zoom range | 0.15 |
+| Width shift | 0.2 |
+| Height shift | 0.2 |
+| Shear range | 0.15 |
+| Horizontal flip | `True` |
+| Fill mode | `nearest` |
 
-| Augmentation | Setting |
-|---|---:|
-| Rotation | 30° |
-| Zoom | 0.15 |
-| Horizontal shift | 0.20 |
-| Vertical shift | 0.20 |
-| Shear | 0.15 |
-| Horizontal flip | Enabled |
-| Fill mode | Nearest |
-| Batch size | 16 |
-| Random seed | 0 |
-
-The augmentation is applied after dataset partitioning and is generated dynamically during training.
+Augmented images are intended to be generated during batch preparation rather than saved as separate files. The original dataset therefore contains 4,428 images.
 
 ---
 
-## 6. Model Architecture
+## 6. Proposed Model Architecture
 
-The proposed model consists of four main components:
+### 6.1. CNN Branch
 
-1. InceptionV3 CNN branch
-2. Transformer branch
-3. Lightweight Graph Neural Network
-4. Cross-Attention Gating Block
+- ImageNet-pretrained InceptionV3 backbone with `include_top=False`.
+- Global average pooling for image-level feature extraction.
 
-These components are followed by a fully connected classification layer.
+### 6.2. Transformer Branch
 
----
+- Convolutional stem with two stride-2 convolutions using 32 and 64 filters.
+- 16 × 16 patch embedding.
+- Token embedding dimension of 64, with 16 tokens per image.
+- Two Transformer encoder blocks with four attention heads and key dimension 16.
 
-## 7. InceptionV3 CNN Branch
+### 6.3. Graph Neural Network Branch
 
-### 7.1 Purpose
+- Attention-based message passing across patch tokens.
+- Dense attention adjacency across all tokens, without top-k sparsification.
+- Contextual relationship learning between image regions.
 
-The CNN branch extracts high-level visual features from disaster images.
+### 6.4. Cross-Attention Gating Block (CAGB)
 
-The proposed framework uses a pretrained:
+- Integrates CNN, Transformer, and graph-based representations.
+- Projects each representation to a common dimension of 256.
+- Uses three cross-attention sigmoid gates with four attention heads.
+- Passes the fused representation through Dense(256) layers and a four-class softmax classifier.
 
-```text
-InceptionV3
-```
+### Model Parameters
 
-network initialized with ImageNet weights.
-
-### 7.2 CNN Processing
-
-The CNN branch follows:
-
-```text
-Input Image
-     |
-     v
-InceptionV3
-     |
-     v
-Convolutional Feature Map
-     |
-     v
-Global Average Pooling
-     |
-     v
-CNN Feature Vector
-     |
-     v
-Linear Projection
-     |
-     v
-Projected CNN Features
-```
-
-The extracted CNN representation is projected into a common feature space for subsequent fusion.
+| Parameter | Count |
+|:---|---:|
+| Total parameters | 24,764,260 |
+| Trainable parameters | 24,729,828 |
+| Non-trainable parameters | 34,432 |
 
 ---
 
-## 8. Transformer Branch
-
-### 8.1 Purpose
-
-The Transformer branch captures long-range contextual relationships between different regions of the input image.
-
-### 8.2 Transformer Pipeline
-
-```text
-Input Image
-     |
-     v
-Stem Block
-     |
-     v
-Patch Embedding
-     |
-     v
-Patch Tokens
-     |
-     v
-Transformer Encoder
-     |
-     v
-Context-Enriched Tokens
-```
-
-The Transformer encoder uses self-attention to model relationships between image patches.
-
-### 8.3 Transformer Configuration
+## 7. Training Configuration
 
 | Parameter | Value |
-|---|---:|
-| Patch size | 16 × 16 |
-| Embedding dimension | 64 |
-| Transformer blocks | 2 |
-| Attention heads | 4 |
-| Key dimension | 16 |
-| Feed-forward layer 1 | 128 |
-| Feed-forward layer 2 | 64 |
-
-The Transformer encoder contains multi-head self-attention, residual connections, layer normalization, and feed-forward layers.
-
----
-
-## 9. Lightweight Graph Neural Network
-
-### 9.1 Purpose
-
-The Lightweight GNN models relationships between the Transformer tokens.
-
-The Transformer tokens are treated as graph nodes.
-
-### 9.2 Graph Processing
-
-The graph-learning process is:
-
-```text
-Transformer Tokens
-        |
-        +------------------+
-        |                  |
-        v                  v
- Query Projection    Key Projection
-        |                  |
-        +--------+---------+
-                 |
-                 v
-          Similarity Matrix
-                 |
-                 v
-        Attention Adjacency
-                 |
-                 v
-        Message Aggregation
-                 |
-                 v
-             Node Update
-                 |
-                 v
-          GNN Features
-```
-
-The graph is dynamically constructed using learned attention relationships.
-
-### 9.3 GNN Configuration
-
-| Parameter | Value |
-|---|---:|
-| Feature dimension | 64 |
-| k | 6 |
-
-The GNN performs:
-
-1. Query projection
-2. Key projection
-3. Attention computation
-4. Graph construction
-5. Message aggregation
-6. Node updating
-7. Feature projection
-
----
-
-## 10. Cross-Attention Gating Block (CAGB)
-
-### 10.1 Purpose
-
-The **Cross-Attention Gating Block (CAGB)** adaptively fuses the CNN, Transformer, and GNN representations.
-
-Instead of directly combining all features, the CAGB uses cross-attention and gating mechanisms to emphasize informative features and reduce redundant information.
-
-### 10.2 Feature Interactions
-
-The proposed feature interactions are:
-
-```text
-Transformer → CNN
-
-CNN → Transformer
-
-Transformer → GNN
-```
-
-### 10.3 CAGB Processing
-
-The CNN branch is refined using Transformer-guided cross-attention:
-
-```text
-CNN Features
-     |
-     v
-Transformer-Guided Cross-Attention
-     |
-     v
-Gating Mechanism
-     |
-     v
-Gated CNN Features
-```
-
-The Transformer branch is refined using CNN-guided cross-attention:
-
-```text
-Transformer Features
-     |
-     v
-CNN-Guided Cross-Attention
-     |
-     v
-Gating Mechanism
-     |
-     v
-Gated Transformer Features
-```
-
-The GNN branch is refined using Transformer-guided cross-attention:
-
-```text
-GNN Features
-     |
-     v
-Transformer-Guided Cross-Attention
-     |
-     v
-Gating Mechanism
-     |
-     v
-Gated GNN Features
-```
-
-The three gated representations are then concatenated:
-
-```text
-Gated CNN Features
-        +
-Gated Transformer Features
-        +
-Gated GNN Features
-        |
-        v
-Feature Concatenation
-        |
-        v
-Fused Feature Representation
-```
-
-### 10.4 CAGB Configuration
-
-| Parameter | Value |
-|---|---:|
-| Common projection dimension | 256 |
-| Attention heads | 4 |
-
----
-
-## 11. Final Classification
-
-The fused representation is passed through a fully connected layer.
-
-```text
-Fused Feature Representation
-            |
-            v
-       Dense Layer
-       256 neurons
-            |
-            v
-           ReLU
-            |
-            v
-         Softmax
-            |
-            v
-     Four Disaster Classes
-```
-
-The Softmax layer produces probability scores for the four disaster categories.
-
-The class with the maximum probability is selected as the final prediction.
-
----
-
-## 12. Training Configuration
-
-The reported implementation uses:
-
-- Python 3.10
-- TensorFlow
-- Keras
-- NumPy
-- Pandas
-- OpenCV
-- Matplotlib
-- Scikit-learn
-- GPU-enabled Google Colab
-
-### 12.1 Training Hyperparameters
-
-| Hyperparameter | Value |
-|---|---:|
-| Batch size | 16 |
-| Maximum epochs | 50 |
+|:---|:---|
 | Optimizer | Adam |
-| Learning rate | 1 × 10⁻⁶ |
-| Image size | 224 × 224 |
-| Number of classes | 4 |
+| Learning rate | 0.000001 |
+| Loss function | `categorical_crossentropy` |
+| Batch size | 16 |
+| Epochs run | 50 |
+| Steps per epoch | 178 |
+| Random seed | 0 |
+| Callbacks | None |
+| Final training accuracy | 99.08% |
+| Final validation accuracy | 97.88% |
+| Best validation accuracy | 98.02% (epoch 49) |
 
 ---
 
-## 13. Evaluation Metrics
+## 8. Test Results
 
-The implementation will evaluate the model using:
+The model was evaluated on 886 test images.
 
-- Accuracy
-- Precision
-- Recall
-- F1-score
-- ROC-AUC
-- Confusion Matrix
-- Class-wise Classification Report
-
----
-
-## 14. Reported Results
-
-The paper reports the following final test results:
-
-| Metric | Reported Result |
-|---|---:|
-| Accuracy | 96.16% |
-| Macro Precision | 96.33% |
-| Macro Recall | 96.10% |
+| Evaluation Metric | Value |
+|:---|---:|
+| Test accuracy | 96.16% |
+| Macro precision | 96.33% |
+| Macro recall | 96.10% |
 | Macro F1-score | 96.20% |
-| Micro ROC-AUC | 99.71% |
-
-These values are the results reported in the paper.
-
-They are reference values for this implementation and are **not yet claimed as independently reproduced results from this repository**.
+| Micro-average ROC-AUC | 0.9971 |
+| Total test images | 886 |
 
 ---
 
-## 15. Ablation Study
+## 9. Per-Class Classification Report
 
-The architecture will be implemented progressively to evaluate the contribution of each major component.
+| Class | Precision | Recall | F1-score | ROC-AUC | Support |
+|:---|---:|---:|---:|---:|---:|
+| Cyclone | 1.0000 | 0.9648 | 0.9821 | 0.9995 | 199 |
+| Earthquake | 0.9504 | 0.9710 | 0.9606 | 0.9965 | 276 |
+| Flood | 0.9461 | 0.9279 | 0.9369 | 0.9933 | 208 |
+| Wildfire | 0.9567 | 0.9803 | 0.9684 | 0.9981 | 203 |
+| **Macro average** | **0.9633** | **0.9610** | **0.9620** | — | **886** |
+| **Weighted average** | **0.9620** | **0.9616** | **0.9616** | — | **886** |
 
-The experimental sequence is:
+---
+
+## 10. Confusion Matrix
+
+Rows represent actual classes, and columns represent predicted classes.
+
+| Actual / Predicted | Cyclone | Earthquake | Flood | Wildfire |
+|:---|---:|---:|---:|---:|
+| Cyclone | 192 | 0 | 2 | 5 |
+| Earthquake | 0 | 268 | 6 | 2 |
+| Flood | 0 | 13 | 193 | 2 |
+| Wildfire | 0 | 1 | 3 | 199 |
+
+---
+
+## 11. Software Environment
+
+The notebook was run in Google Colab.
+
+| Package | Version |
+|:---|:---|
+| Python | 3.13.16 |
+| TensorFlow | 2.21.0 |
+| Keras | 3.13.2 |
+| NumPy | 2.1.3 |
+| pandas | 2.2.3 |
+| scikit-learn | 1.6.1 |
+| OpenCV | 5.0.0.93 |
+| Matplotlib | 3.10.0 |
+
+---
+
+## 12. Repository Structure
+
+The following structure is recommended for organizing the source code and reproducibility artifacts.
 
 ```text
-Experiment 1
-InceptionV3
-     |
-     v
-Experiment 2
-InceptionV3 + Transformer
-     |
-     v
-Experiment 3
-InceptionV3 + Transformer + GNN
-     |
-     v
-Experiment 4
-InceptionV3 + Transformer + GNN + CAGB
+disaster-cnn-transformer-gnn/
+├── README.md
+├── disaster_classification.ipynb
+├── configs/
+│   └── seed0_config.json
+├── results/
+│   ├── test_predictions_seed0.csv
+│   ├── confusion_matrix.csv
+│   └── classification_report.csv
+├── checkpoints/
+│   └── proposed_seed0.keras
+└── environment/
+    └── requirements.txt
 ```
 
-This approach allows the contribution of the Transformer, GNN, and CAGB components to be evaluated separately.
+*Note: This is the intended directory structure. The files should be considered publicly available only after they have been uploaded and their repository locations verified.*
+
+---
+
+## 13. Reproducibility and Evaluation Artifacts
+
+The following artifacts are intended to support independent verification of the reported experimental results:
+
+- **Source code:** `disaster_classification.ipynb`
+- **Run configuration:** `seed0_config.json`
+- **Per-sample predictions and ground-truth labels:** `test_predictions_seed0.csv`
+- **Confusion matrix:** `confusion_matrix.csv`
+- **Classification report:** `classification_report.csv`
+- **Trained model checkpoint:** `proposed_seed0.keras`
+- **Software environment:** `requirements.txt`
+
+The prediction records can be used to independently recompute the evaluation metrics and confusion matrix. The configuration and model checkpoint provide additional information for examining the reported experimental run.
 
 ---
